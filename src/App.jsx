@@ -348,36 +348,6 @@ function setCellValue(grid, row, col, value) {
     })
 }
 
-function forEachCellOnLine(startRow, startCol, endRow, endCol, callback) {
-    let currentCol = startCol
-    let currentRow = startRow
-    const deltaCol = Math.abs(endCol - startCol)
-    const stepCol = startCol < endCol ? 1 : -1
-    const deltaRow = -Math.abs(endRow - startRow)
-    const stepRow = startRow < endRow ? 1 : -1
-    let error = deltaCol + deltaRow
-
-    while (true) {
-        callback(currentRow, currentCol)
-
-        if (currentCol === endCol && currentRow === endRow) {
-            return
-        }
-
-        const doubledError = error * 2
-
-        if (doubledError >= deltaRow) {
-            error += deltaRow
-            currentCol += stepCol
-        }
-
-        if (doubledError <= deltaCol) {
-            error += deltaCol
-            currentRow += stepRow
-        }
-    }
-}
-
 function drawRoundedRectPath(context, x, y, width, height, radius) {
     const clampedRadius = Math.min(radius, width / 2, height / 2)
 
@@ -1132,7 +1102,6 @@ export default function App() {
     const drawingStateRef = useRef({
         active: false,
         value: 0,
-        lastCell: null,
         paintedCellKeys: new Set(),
     })
     const blockedDeadCellKeysRef = useRef(new Set())
@@ -1258,7 +1227,6 @@ export default function App() {
     const stopDrawing = () => {
         const drawingState = drawingStateRef.current
         drawingState.active = false
-        drawingState.lastCell = null
         drawingState.paintedCellKeys.clear()
     }
 
@@ -1303,18 +1271,6 @@ export default function App() {
         }
 
         setCellState(row, col, value)
-    }
-
-    const paintDraggedCells = (row, col, value) => {
-        const drawingState = drawingStateRef.current
-        const lastCell = drawingState.lastCell ?? { row, col }
-
-        // Fill skipped cells between pointer samples so touch drags stay continuous.
-        forEachCellOnLine(lastCell.row, lastCell.col, row, col, (nextRow, nextCol) => {
-            paintCell(nextRow, nextCol, value)
-        })
-
-        drawingState.lastCell = { row, col }
     }
 
     const getCellFromPointerPosition = (clientX, clientY) => {
@@ -1551,7 +1507,7 @@ export default function App() {
                                 return
                             }
 
-                            paintDraggedCells(nextCell.rowIndex, nextCell.colIndex, drawingState.value)
+                            paintCell(nextCell.rowIndex, nextCell.colIndex, drawingState.value)
                         }}
                     >
                         {grid.map((row, rowIndex) =>
@@ -1576,10 +1532,9 @@ export default function App() {
                                             const drawingState = drawingStateRef.current
                                             drawingState.active = true
                                             drawingState.value = nextValue
-                                            drawingState.lastCell = null
                                             drawingState.paintedCellKeys.clear()
 
-                                            paintDraggedCells(rowIndex, colIndex, nextValue)
+                                            paintCell(rowIndex, colIndex, nextValue)
                                         }}
                                         onPointerEnter={() => {
                                             setHoveredCell(isBlocked ? null : { rowIndex, colIndex })
@@ -1590,7 +1545,7 @@ export default function App() {
                                                 return
                                             }
 
-                                            paintDraggedCells(rowIndex, colIndex, drawingState.value)
+                                            paintCell(rowIndex, colIndex, drawingState.value)
                                         }}
                                         onPointerUp={stopDrawing}
                                         onFocus={() => {
