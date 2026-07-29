@@ -1,7 +1,7 @@
 import { memo, useEffect, useId, useMemo, useRef, useState } from 'react'
-import sea1Video from '../data/sea1.mov'
-import sea2Video from '../data/sea2.mov'
-import sea3Video from '../data/sea3.mov'
+import sea1Video from '../data/sea1.mp4'
+import sea2Video from '../data/sea2.mp4'
+import sea3Video from '../data/sea3.mp4'
 
 const BASE_GRID_SIZE = 12
 const PATTERN_PADDING = 2
