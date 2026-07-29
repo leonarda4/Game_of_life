@@ -2,6 +2,9 @@ import { memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import sea1Video from '../data/sea1.mp4'
 import sea2Video from '../data/sea2.mp4'
 import sea3Video from '../data/sea3.mp4'
+import sea1Thumbnail from '../data/sea1.mp4.png'
+import sea2Thumbnail from '../data/sea2.mp4.png'
+import sea3Thumbnail from '../data/sea3.mp4.png'
 
 const BASE_GRID_SIZE = 12
 const PATTERN_PADDING = 2
@@ -42,9 +45,9 @@ const PULSAR_PATTERN = [
 ]
 const GRID_SIZE = Math.max(BASE_GRID_SIZE, PULSAR_PATTERN.length + PATTERN_PADDING * 2)
 const SEA_VIDEOS = [
-    { id: 'sea-1', label: 'Sea 1', src: sea1Video, frameTime: 0.6 },
-    { id: 'sea-2', label: 'Sea 2', src: sea2Video, frameTime: 0.75 },
-    { id: 'sea-3', label: 'Sea 3', src: sea3Video, frameTime: 0.9 },
+    { id: 'sea-1', label: 'Sea 1', src: sea1Video, thumbnailSrc: sea1Thumbnail },
+    { id: 'sea-2', label: 'Sea 2', src: sea2Video, thumbnailSrc: sea2Thumbnail },
+    { id: 'sea-3', label: 'Sea 3', src: sea3Video, thumbnailSrc: sea3Thumbnail },
 ]
 
 function createGrid(rows, cols, random = false) {
@@ -1000,9 +1003,10 @@ function downloadSvg(filename, svgMarkup) {
 
 const LoopingVideo = memo(function LoopingVideo({
     className,
+    poster,
     src,
     style,
-    preload = 'auto',
+    preload = 'metadata',
 }) {
     const videoRef = useRef(null)
 
@@ -1050,6 +1054,7 @@ const LoopingVideo = memo(function LoopingVideo({
             ref={videoRef}
             className={className}
             src={src}
+            poster={poster}
             style={style}
             autoPlay
             defaultMuted
@@ -1062,100 +1067,16 @@ const LoopingVideo = memo(function LoopingVideo({
     )
 })
 
-const BoardVideo = memo(function BoardVideo({ bleedStyle, src }) {
-    return <LoopingVideo className="board-video" src={src} style={bleedStyle} preload="auto" />
+const BoardVideo = memo(function BoardVideo({ bleedStyle, poster, src }) {
+    return <LoopingVideo className="board-video" src={src} poster={poster} style={bleedStyle} preload="metadata" />
 })
 
 const VideoThumbnailButton = memo(function VideoThumbnailButton({
     active,
-    frameTime,
     label,
     onClick,
-    src,
+    thumbnailSrc,
 }) {
-    const [thumbnailSrc, setThumbnailSrc] = useState('')
-
-    useEffect(() => {
-        if (typeof document === 'undefined') {
-            return undefined
-        }
-
-        let cancelled = false
-        const video = document.createElement('video')
-        const canvas = document.createElement('canvas')
-        const context = canvas.getContext('2d')
-
-        if (!context) {
-            return undefined
-        }
-
-        const captureFrame = () => {
-            if (cancelled || video.videoWidth === 0 || video.videoHeight === 0) {
-                return
-            }
-
-            canvas.width = video.videoWidth
-            canvas.height = video.videoHeight
-            context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-            if (!cancelled) {
-                setThumbnailSrc(canvas.toDataURL('image/jpeg', 0.82))
-            }
-        }
-
-        const seekToThumbnailFrame = () => {
-            const duration = Number.isFinite(video.duration) ? video.duration : frameTime
-            const targetTime = Math.max(0.1, Math.min(frameTime, Math.max(0.1, duration - 0.1)))
-
-            if (Math.abs(video.currentTime - targetTime) < 0.02) {
-                captureFrame()
-                return
-            }
-
-            try {
-                video.currentTime = targetTime
-            } catch {
-                captureFrame()
-            }
-        }
-
-        const handleLoadedData = () => {
-            if (video.readyState >= 2) {
-                seekToThumbnailFrame()
-            }
-        }
-
-        const handleSeeked = () => {
-            captureFrame()
-        }
-
-        const handleError = () => {
-            if (!cancelled) {
-                setThumbnailSrc('')
-            }
-        }
-
-        video.preload = 'auto'
-        video.defaultMuted = true
-        video.muted = true
-        video.playsInline = true
-        video.addEventListener('loadeddata', handleLoadedData)
-        video.addEventListener('seeked', handleSeeked)
-        video.addEventListener('error', handleError)
-        video.src = src
-        video.load()
-
-        return () => {
-            cancelled = true
-            video.pause()
-            video.removeEventListener('loadeddata', handleLoadedData)
-            video.removeEventListener('seeked', handleSeeked)
-            video.removeEventListener('error', handleError)
-            video.removeAttribute('src')
-            video.load()
-        }
-    }, [frameTime, src])
-
     return (
         <button
             className={`video-swatch ${active ? 'is-active' : ''}`}
@@ -1164,7 +1085,7 @@ const VideoThumbnailButton = memo(function VideoThumbnailButton({
             aria-pressed={active}
             aria-label={`Switch to ${label}`}
         >
-            {thumbnailSrc ? <img className="video-swatch-image" src={thumbnailSrc} alt="" /> : null}
+            <img className="video-swatch-image" src={thumbnailSrc} alt="" />
         </button>
     )
 })
@@ -1188,7 +1109,8 @@ export default function App() {
     const overlayMaskId = `${svgToken}-overlay-mask`
     const rowCount = grid.length
     const colCount = grid[0].length
-    const currentVideoSrc = SEA_VIDEOS[videoIndex]?.src ?? SEA_VIDEOS[0].src
+    const currentVideo = SEA_VIDEOS[videoIndex] ?? SEA_VIDEOS[0]
+    const currentVideoSrc = currentVideo.src
     const maskX = -MASK_BLEED
     const maskY = -MASK_BLEED
     const maskWidth = colCount + MASK_BLEED * 2
@@ -1404,10 +1326,9 @@ export default function App() {
                         <VideoThumbnailButton
                             key={video.id}
                             active={index === videoIndex}
-                            frameTime={video.frameTime}
                             label={video.label}
                             onClick={() => setVideoIndex(index)}
-                            src={video.src}
+                            thumbnailSrc={video.thumbnailSrc}
                         />
                     ))}
                 </div>
@@ -1415,7 +1336,7 @@ export default function App() {
 
             <section className="center-panel">
                 <div ref={boardFrameRef} className="board-frame">
-                    <BoardVideo bleedStyle={bleedStyle} src={currentVideoSrc} />
+                    <BoardVideo bleedStyle={bleedStyle} poster={currentVideo.thumbnailSrc} src={currentVideoSrc} />
                     <svg
                         className="life-surface"
                         viewBox={`0 0 ${colCount} ${rowCount}`}
