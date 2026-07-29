@@ -1,0 +1,23 @@
+{
+    "redirects": [
+        {
+            "source": "/",
+            "destination": "/game-of-life/",
+            "permanent": false
+        }
+    ],
+    "rewrites": [
+        {
+            "source": "/game-of-life",
+            "destination": "/"
+        },
+        {
+            "source": "/game-of-life/",
+            "destination": "/"
+        },
+        {
+            "source": "/game-of-life/:path*",
+            "destination": "/:path*"
+        }
+    ]
+}
