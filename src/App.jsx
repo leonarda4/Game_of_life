@@ -348,6 +348,36 @@ function setCellValue(grid, row, col, value) {
     })
 }
 
+function forEachCellOnLine(startRow, startCol, endRow, endCol, callback) {
+    let currentCol = startCol
+    let currentRow = startRow
+    const deltaCol = Math.abs(endCol - startCol)
+    const stepCol = startCol < endCol ? 1 : -1
+    const deltaRow = -Math.abs(endRow - startRow)
+    const stepRow = startRow < endRow ? 1 : -1
+    let error = deltaCol + deltaRow
+
+    while (true) {
+        callback(currentRow, currentCol)
+
+        if (currentCol === endCol && currentRow === endRow) {
+            return
+        }
+
+        const doubledError = error * 2
+
+        if (doubledError >= deltaRow) {
+            error += deltaRow
+            currentCol += stepCol
+        }
+
+        if (doubledError <= deltaCol) {
+            error += deltaCol
+            currentRow += stepRow
+        }
+    }
+}
+
 function drawRoundedRectPath(context, x, y, width, height, radius) {
     const clampedRadius = Math.min(radius, width / 2, height / 2)
 
@@ -1098,9 +1128,11 @@ export default function App() {
     const [wordLayouts, setWordLayouts] = useState([])
     const [boardBounds, setBoardBounds] = useState({ width: 0, height: 0 })
     const boardFrameRef = useRef(null)
+    const gridRef = useRef(null)
     const drawingStateRef = useRef({
         active: false,
         value: 0,
+        lastCell: null,
         paintedCellKeys: new Set(),
     })
     const blockedDeadCellKeysRef = useRef(new Set())
@@ -1226,6 +1258,7 @@ export default function App() {
     const stopDrawing = () => {
         const drawingState = drawingStateRef.current
         drawingState.active = false
+        drawingState.lastCell = null
         drawingState.paintedCellKeys.clear()
     }
 
@@ -1272,6 +1305,48 @@ export default function App() {
         setCellState(row, col, value)
     }
 
+    const paintDraggedCells = (row, col, value) => {
+        const drawingState = drawingStateRef.current
+        const lastCell = drawingState.lastCell ?? { row, col }
+
+        // Fill skipped cells between pointer samples so touch drags stay continuous.
+        forEachCellOnLine(lastCell.row, lastCell.col, row, col, (nextRow, nextCol) => {
+            paintCell(nextRow, nextCol, value)
+        })
+
+        drawingState.lastCell = { row, col }
+    }
+
+    const getCellFromPointerPosition = (clientX, clientY) => {
+        const gridElement = gridRef.current
+
+        if (!gridElement) {
+            return null
+        }
+
+        const bounds = gridElement.getBoundingClientRect()
+
+        if (
+            clientX < bounds.left ||
+            clientX >= bounds.right ||
+            clientY < bounds.top ||
+            clientY >= bounds.bottom
+        ) {
+            return null
+        }
+
+        const colIndex = Math.min(
+            colCount - 1,
+            Math.max(0, Math.floor(((clientX - bounds.left) / bounds.width) * colCount)),
+        )
+        const rowIndex = Math.min(
+            rowCount - 1,
+            Math.max(0, Math.floor(((clientY - bounds.top) / bounds.height) * rowCount)),
+        )
+
+        return { rowIndex, colIndex }
+    }
+
     const toggleCell = (row, col) => {
         if (grid[row][col] === 0 && blockedDeadCellKeys.has(getCellKey(row, col))) {
             return
@@ -1290,7 +1365,18 @@ export default function App() {
     }
 
     const seedPulsar = () => setGrid(createPatternGrid(PULSAR_PATTERN, GRID_SIZE))
-    const reset = () => setGrid(createGrid(grid.length, grid[0].length))
+    const reset = () => {
+        const { grid: clearedGrid, wordLayouts: clearedWordLayouts } = resolveWordLayouts(
+            createGrid(grid.length, grid[0].length),
+            wordFootprints,
+        )
+
+        stopDrawing()
+        setRunning(false)
+        setHoveredCell(null)
+        setWordLayouts(clearedWordLayouts)
+        setGrid(clearedGrid)
+    }
     const randomize = () => {
         const { grid: randomizedGrid, wordLayouts: randomizedWordLayouts } = createRandomizedGrid(
             GRID_SIZE,
@@ -1438,11 +1524,35 @@ export default function App() {
                         ))}
                     </div>
                     <div
+                        ref={gridRef}
                         className="grid"
                         style={{ '--grid-size': rowCount }}
                         role="grid"
                         aria-label="Game of Life board"
                         onMouseLeave={() => setHoveredCell(null)}
+                        onPointerMove={(event) => {
+                            const nextCell = getCellFromPointerPosition(event.clientX, event.clientY)
+
+                            if (!nextCell) {
+                                setHoveredCell(null)
+                                return
+                            }
+
+                            const nextCellKey = getCellKey(nextCell.rowIndex, nextCell.colIndex)
+                            const isBlocked =
+                                grid[nextCell.rowIndex]?.[nextCell.colIndex] === 0 &&
+                                blockedDeadCellKeys.has(nextCellKey)
+
+                            setHoveredCell(isBlocked ? null : nextCell)
+
+                            const drawingState = drawingStateRef.current
+
+                            if (!drawingState.active) {
+                                return
+                            }
+
+                            paintDraggedCells(nextCell.rowIndex, nextCell.colIndex, drawingState.value)
+                        }}
                     >
                         {grid.map((row, rowIndex) =>
                             row.map((cell, colIndex) => {
@@ -1466,9 +1576,10 @@ export default function App() {
                                             const drawingState = drawingStateRef.current
                                             drawingState.active = true
                                             drawingState.value = nextValue
+                                            drawingState.lastCell = null
                                             drawingState.paintedCellKeys.clear()
 
-                                            paintCell(rowIndex, colIndex, nextValue)
+                                            paintDraggedCells(rowIndex, colIndex, nextValue)
                                         }}
                                         onPointerEnter={() => {
                                             setHoveredCell(isBlocked ? null : { rowIndex, colIndex })
@@ -1479,7 +1590,7 @@ export default function App() {
                                                 return
                                             }
 
-                                            paintCell(rowIndex, colIndex, drawingState.value)
+                                            paintDraggedCells(rowIndex, colIndex, drawingState.value)
                                         }}
                                         onPointerUp={stopDrawing}
                                         onFocus={() => {
