@@ -1,9 +1,12 @@
 import { memo, useEffect, useId, useMemo, useRef, useState } from 'react'
-import seaVideo from '../data/sea.mov'
+import sea1Video from '../data/sea1.mov'
+import sea2Video from '../data/sea2.mov'
+import sea3Video from '../data/sea3.mov'
 
 const BASE_GRID_SIZE = 12
 const PATTERN_PADDING = 2
 const GOO_BLEED = 0.55
+const MASK_BLEED = GOO_BLEED + 0.08
 const CELL_RADIUS = 0.28
 const GOO_DILATE_RADIUS = 0.12
 const GOO_BLUR_RADIUS = 0.22
@@ -38,6 +41,11 @@ const PULSAR_PATTERN = [
     '..***...***..',
 ]
 const GRID_SIZE = Math.max(BASE_GRID_SIZE, PULSAR_PATTERN.length + PATTERN_PADDING * 2)
+const SEA_VIDEOS = [
+    { id: 'sea-1', label: 'Sea 1', src: sea1Video, frameTime: 0.6 },
+    { id: 'sea-2', label: 'Sea 2', src: sea2Video, frameTime: 0.75 },
+    { id: 'sea-3', label: 'Sea 3', src: sea3Video, frameTime: 0.9 },
+]
 
 function createGrid(rows, cols, random = false) {
     return Array.from({ length: rows }, () =>
@@ -1058,9 +1066,113 @@ const BoardVideo = memo(function BoardVideo({ bleedStyle, src }) {
     return <LoopingVideo className="board-video" src={src} style={bleedStyle} preload="auto" />
 })
 
+const VideoThumbnailButton = memo(function VideoThumbnailButton({
+    active,
+    frameTime,
+    label,
+    onClick,
+    src,
+}) {
+    const [thumbnailSrc, setThumbnailSrc] = useState('')
+
+    useEffect(() => {
+        if (typeof document === 'undefined') {
+            return undefined
+        }
+
+        let cancelled = false
+        const video = document.createElement('video')
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+
+        if (!context) {
+            return undefined
+        }
+
+        const captureFrame = () => {
+            if (cancelled || video.videoWidth === 0 || video.videoHeight === 0) {
+                return
+            }
+
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+            context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+            if (!cancelled) {
+                setThumbnailSrc(canvas.toDataURL('image/jpeg', 0.82))
+            }
+        }
+
+        const seekToThumbnailFrame = () => {
+            const duration = Number.isFinite(video.duration) ? video.duration : frameTime
+            const targetTime = Math.max(0.1, Math.min(frameTime, Math.max(0.1, duration - 0.1)))
+
+            if (Math.abs(video.currentTime - targetTime) < 0.02) {
+                captureFrame()
+                return
+            }
+
+            try {
+                video.currentTime = targetTime
+            } catch {
+                captureFrame()
+            }
+        }
+
+        const handleLoadedData = () => {
+            if (video.readyState >= 2) {
+                seekToThumbnailFrame()
+            }
+        }
+
+        const handleSeeked = () => {
+            captureFrame()
+        }
+
+        const handleError = () => {
+            if (!cancelled) {
+                setThumbnailSrc('')
+            }
+        }
+
+        video.preload = 'auto'
+        video.defaultMuted = true
+        video.muted = true
+        video.playsInline = true
+        video.addEventListener('loadeddata', handleLoadedData)
+        video.addEventListener('seeked', handleSeeked)
+        video.addEventListener('error', handleError)
+        video.src = src
+        video.load()
+
+        return () => {
+            cancelled = true
+            video.pause()
+            video.removeEventListener('loadeddata', handleLoadedData)
+            video.removeEventListener('seeked', handleSeeked)
+            video.removeEventListener('error', handleError)
+            video.removeAttribute('src')
+            video.load()
+        }
+    }, [frameTime, src])
+
+    return (
+        <button
+            className={`video-swatch ${active ? 'is-active' : ''}`}
+            onClick={onClick}
+            type="button"
+            aria-pressed={active}
+            aria-label={`Switch to ${label}`}
+        >
+            {thumbnailSrc ? <img className="video-swatch-image" src={thumbnailSrc} alt="" /> : null}
+        </button>
+    )
+})
+
 export default function App() {
     const [grid, setGrid] = useState(() => createPatternGrid(PULSAR_PATTERN, GRID_SIZE))
     const [running, setRunning] = useState(true)
+    const [videoIndex, setVideoIndex] = useState(0)
     const [hoveredCell, setHoveredCell] = useState(null)
     const [wordLayouts, setWordLayouts] = useState([])
     const [boardBounds, setBoardBounds] = useState({ width: 0, height: 0 })
@@ -1076,10 +1188,11 @@ export default function App() {
     const overlayMaskId = `${svgToken}-overlay-mask`
     const rowCount = grid.length
     const colCount = grid[0].length
-    const maskX = -GOO_BLEED
-    const maskY = -GOO_BLEED
-    const maskWidth = colCount + GOO_BLEED * 2
-    const maskHeight = rowCount + GOO_BLEED * 2
+    const currentVideoSrc = SEA_VIDEOS[videoIndex]?.src ?? SEA_VIDEOS[0].src
+    const maskX = -MASK_BLEED
+    const maskY = -MASK_BLEED
+    const maskWidth = colCount + MASK_BLEED * 2
+    const maskHeight = rowCount + MASK_BLEED * 2
     const aliveCells = useMemo(
         () =>
             grid.flatMap((row, rowIndex) =>
@@ -1283,16 +1396,26 @@ export default function App() {
                 <div className="controls">
                     <button onClick={() => setRunning((value) => !value)}>{running ? 'Stop' : 'Start'}</button>
                     <button onClick={() => setGrid((current) => nextGeneration(current))}>Step</button>
-                    <button onClick={seedPulsar}>Pulsar</button>
                     <button onClick={randomize}>Randomize</button>
                     <button onClick={reset}>Clear</button>
-                    <button onClick={exportSvg}>Export SVG</button>
+                </div>
+                <div className="video-picker" role="group" aria-label="Choose sea video">
+                    {SEA_VIDEOS.map((video, index) => (
+                        <VideoThumbnailButton
+                            key={video.id}
+                            active={index === videoIndex}
+                            frameTime={video.frameTime}
+                            label={video.label}
+                            onClick={() => setVideoIndex(index)}
+                            src={video.src}
+                        />
+                    ))}
                 </div>
             </aside>
 
             <section className="center-panel">
                 <div ref={boardFrameRef} className="board-frame">
-                    <BoardVideo bleedStyle={bleedStyle} src={seaVideo} />
+                    <BoardVideo bleedStyle={bleedStyle} src={currentVideoSrc} />
                     <svg
                         className="life-surface"
                         viewBox={`0 0 ${colCount} ${rowCount}`}
@@ -1469,31 +1592,26 @@ export default function App() {
                     <h2>About</h2>
                     <p>
                         This project is a reinterpretation of John Conway&apos;s <a href="https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life">Game of Life</a> through the
-                        idea of digital daydreaming. The idea came from zoning out while watching waves and the way light moves across the surface
+                        theme of digital daydreaming. The idea came from zoning out while watching waves and the way light moves across the surface
                         of the sea. 
                     </p>
                     <p>
                         Both the sea and the Game of Life can create complex, shifting forms from a
                         small number of simple conditions, while one is a natural phenomenon and the other is a mathematical abstraction. 
                         The goal of this project is to explore the
-                        similarities  and to create a space for play.
+                        similarities between them and to create a space for play.
                     </p>
                 </div>
                 <div className="content-block">
                     <h2>Rules</h2>
                     <p>
                         It is often described as a zero-player game because, once it
-                        begins, there is no need for anyone to control it. A few simple rules decide how the cells
-                        change, but the patterns they create can become surprisingly complex.
+                        begins, there is no need for anyone to control it.
                     </p>
                     <p>   
                         Each cell responds to the eight cells around it. A live cell with two or three neighbors
                         survives. A dead cell with exactly three neighbors becomes alive. All other cells die or remain
                         dead.
-                    </p>
-                    <p>
-                        These rules are simple, but the results are often unpredictable. Patterns can grow, repeat,
-                        collide, disappear, or settle into still forms.
                     </p>
                 </div>
                 <div className="content-block">
@@ -1507,12 +1625,6 @@ export default function App() {
                         You can also click directly on the board while it is running. This immediately interrupts the
                         current pattern and changes how it develops. Pausing the simulation gives you more time to
                         build deliberate or complex arrangements before setting them in motion again.{' '}
-                        <strong>Pulsar</strong> adds a known repeating pattern, <strong>Randomize</strong> fills the
-                        board with a new arrangement, and <strong>Clear</strong> lets you begin again.
-                    </p>
-                    <p>
-                        There is no goal or correct way to interact with it. You can carefully construct patterns,
-                        interfere with them as they move, or simply let the simulation play and watch what emerges.
                     </p>
                 </div>
             </aside>
