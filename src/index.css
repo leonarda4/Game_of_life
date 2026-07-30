@@ -6,6 +6,7 @@ html {
     --ink-color: #15324d;
     --ink-color-rgb: 21, 50, 77;
     --paper-color: #fff8da;
+    --section-title-size: clamp(1.4rem, 3vw, 2rem);
     --show-grid-guides: 0;
     --show-sea-video: 1;
     font-family: Helvetica, Arial, sans-serif;
@@ -104,15 +105,18 @@ button {
     background: none;
     padding: 0;
     cursor: pointer;
-    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-size: var(--section-title-size);
     font-weight: 400;
     width: fit-content;
     text-align: left;
     color: var(--ink-color);
+    -webkit-tap-highlight-color: transparent;
 }
 
-.controls button:hover {
-    color: #555;
+@media (hover: hover) and (pointer: fine) {
+    .controls button:hover {
+        color: #555;
+    }
 }
 
 .video-picker {
@@ -220,7 +224,7 @@ button {
 
 .content-block h2 {
     margin: 0 0 12px 0;
-    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-size: var(--section-title-size);
     font-weight: 400;
 }
 
@@ -288,6 +292,10 @@ button {
 }
 
 @media (max-width: 1100px) {
+    :root {
+        --section-title-size: clamp(1.15rem, 4.2vw, 1.6rem);
+    }
+
     body {
         overflow-x: hidden;
         overflow-y: auto;
@@ -346,7 +354,6 @@ button {
     }
 
     .controls button {
-        font-size: clamp(1.15rem, 4.2vw, 1.6rem);
         line-height: 1;
     }
 
