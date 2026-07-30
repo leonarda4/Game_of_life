@@ -303,7 +303,8 @@ button {
             'board'
             'controls'
             'text';
-        gap: 60px;
+        gap: 32px;
+        padding-top: 60px;
         overflow: visible;
     }
 
@@ -352,7 +353,7 @@ button {
     .video-picker {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 6px;
+        gap: 12px;
         width: 100%;
     }
 
@@ -366,7 +367,8 @@ button {
 @media (max-width: 640px) {
     .app-shell {
         --shell-padding: 16px;
-        gap: 60px;
+        gap: 32px;
+        padding-top: 60px;
     }
 
     .video-swatch {
