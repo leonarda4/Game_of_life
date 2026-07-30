@@ -351,10 +351,13 @@ button {
     }
 
     .video-picker {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-self: flex-start;
         gap: 12px;
-        width: 100%;
+        width: fit-content;
+        max-width: 100%;
     }
 
     .right-sidebar {
