@@ -370,7 +370,7 @@ button {
 @media (max-width: 640px) {
     .app-shell {
         --shell-padding: 16px;
-        gap: 32px;
+        gap: 60px;
         padding-top: 60px;
     }
 
