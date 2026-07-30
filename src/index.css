@@ -303,7 +303,7 @@ button {
             'board'
             'controls'
             'text';
-        gap: 32px;
+        gap: 60px;
         padding-top: 60px;
         overflow: visible;
     }
