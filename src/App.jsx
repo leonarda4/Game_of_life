@@ -22,6 +22,7 @@ const EXPORT_SMOOTHING_PASSES = 0
 const EXPORT_CURVE_TENSION = 0.9
 const INK_COLOR = '#15324D'
 const EXPORT_WORD_FILL = INK_COLOR
+const SHOW_EXPORT_BUTTON = false
 const BOARD_WORDS = ['Game', 'of', 'life']
 const WORD_HEIGHT_IN_CELLS = 2
 const WORD_PADDING_PX = 8
@@ -1362,6 +1363,7 @@ export default function App() {
                     <button onClick={() => setGrid((current) => nextGeneration(current))}>Step</button>
                     <button onClick={randomize}>Randomize</button>
                     <button onClick={reset}>Clear</button>
+                    {SHOW_EXPORT_BUTTON ? <button onClick={exportSvg}>Export SVG</button> : null}
                 </div>
                 <div className="video-picker" role="group" aria-label="Choose sea video">
                     {SEA_VIDEOS.map((video, index) => (
